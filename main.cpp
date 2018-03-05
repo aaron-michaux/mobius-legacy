@@ -119,7 +119,6 @@ static void show_help(const char * exec_name);
 static Options parse_commandline(int argc, char * * argv);
 
 // Environment variables
-static const string& getenv(State& state, const string& s, bool strict);
 static void substitute_env_variables(State& state, string& line_s, bool strict);
 
 // String functions
@@ -470,50 +469,45 @@ static void command_substitute(State& state,
     // if a '!' exists, then add that product to the list of files in state    
 
     // Remove leading './' if it is there
-    const char * fname_ptr = fname.c_str();
-    if(fname.size() > 2 && fname_ptr[0] == '.' && fname_ptr[1] == '/')
-        fname_ptr += 2;
+    string_view fnamev = fname;
+    if(fnamev.size() > 2 && fnamev[0] == '.' && fnamev[1] == '/')
+        fnamev.remove_prefix(2);
 
     // Create the extensionless version
-    const char * extless_ptr = fname_ptr;
+    string_view extlessv = fnamev;
     {
-        int len = strlen(extless_ptr);
-        int i = len - 1;
+        int i = extlessv.size() - 1;
         for(; i >= 0; --i) {
-            if(extless_ptr[i] == '.') break;
-            if(extless_ptr[i] == '/') break;
+            if(extlessv[i] == '.') break;
+            if(extlessv[i] == '/') break;
         }
-
-        if(extless_ptr[i] == '.') {
-            // alloca the extensionless version
-            char * ptr = static_cast<char *>(alloca(i));
-            memcpy((void *) ptr, (void *) fname_ptr, i);
-            ptr[i] = '\0';
-            extless_ptr = ptr;
-        }
+        if(extlessv[i] == '.')
+            extlessv.remove_suffix(extlessv.size() - i);
     }
-
-    auto strdup = [] (const char * s) {
-        auto dup = static_cast<char *>(malloc((strlen(s) + 1) * sizeof(char)));
-        strcpy(dup, s);
+   
+    auto strdup = [] (string_view s) {
+        auto dup = static_cast<char *>(malloc((s.size() + 1) * sizeof(char)));
+        int pos = 0;
+        for(auto c: s)
+            dup[pos++] = c;
+        dup[pos] = '\0';
         return dup;
     };
     
-    auto get = [&] (const char * s, char * (*f) (char *)) {
+    auto write = [&] (string_view s, char * (*f) (char *), std::ostream& out) {
         auto dup = strdup(s);
-        auto ret = string(f(dup));
-        free(dup);
-        return ret;
+        out << f(dup);
+        free(dup);        
     };
 
     // Output the command
     auto process_text = [&] (const string& s, std::ostream& out) {
         for(auto c: s) {
             switch(c) {
-            case '^': out << fname_ptr; break;
-            case '%': out << extless_ptr; break;
-            case '@': out << get(fname_ptr, dirname).c_str(); break;
-            case '&': out << get(extless_ptr, basename).c_str(); break;
+            case '^': out << fnamev; break;
+            case '%': out << extlessv; break;
+            case '@': write(fnamev, dirname, out); break;
+            case '&': write(extlessv, basename, out); break;
             case '!': break;
             default:  out << c;
             }
@@ -550,30 +544,6 @@ static void command_substitute(State& state,
 
 static void process_src_command(State& state, const vector<string> command)
 {
-    // +src VAR=*.o FOO=*.pb.h cd=../src dir1 dir2 dir3
-    // - *.proto       $builddir/%.pb.h $builddir/%.pb.cc!: proto   $
-    // - *tweaker.cpp  $builddir/%.o:               cpp_O3  $  | $root/zap.pb.h
-    //   ~ o_flag = -O1
-    // - *.cpp         $builddir/%.o:               cpp     $
-    //
-    // where:
-    // +src indicates the start of a source command
-    //  - VAR=*.o and FOO=*.pb.h indicates that enviroment variable VAR
-    //    (and FOO) are set to globbed output file matches for all the rules
-    //  - cd../src means "change directory before searching"
-    //  - dir1 dir2 dir3 are the directories that are searched
-    //
-    // For each file found, the first matching rule is applied.
-    // Rules begin with '-', where:
-    //  - *.proto is a wildcard match (can have multiple *)
-    //  - % is the matched filename without extension
-    //  - ^ is the matched filename
-    //  - @ is dirname(filename)
-    //  - & is basename(filename)
-    //  - !, if an output filename ends !, then it's added to the list of files
-    //       found above
-    //  - ~, A line beging like this is just a continuation of the previous rule
-
     // ---- Parse the source line...
     string cd_dir = "";
     vector<FilterVariable> filters;
@@ -754,7 +724,7 @@ static bool preprocess_input(State& state)
     for(string line; std::getline(state.in, line); ) {
         if(!starts_with(line, "#"))
             substitute_env_variables(state, line, false);
-        state.lines.emplace_back(std::move(line));
+        state.lines.push_back(line);
     }
 
     return true;
