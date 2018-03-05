@@ -88,6 +88,7 @@ struct State
     const Options& opts;
     istream& in;
     ostream& out;
+    std::deque<string> lines;
     string current_working_directory{""};
     vector<string> additional_filenames;
     unordered_map<string, string> env; // cached environment variables
@@ -118,8 +119,8 @@ static void show_help(const char * exec_name);
 static Options parse_commandline(int argc, char * * argv);
 
 // Environment variables
-static const string& getenv(State& state, const string& s);
-static void substitute_env_variables(State& state, string& line_s);
+static const string& getenv(State& state, const string& s, bool strict);
+static void substitute_env_variables(State& state, string& line_s, bool strict);
 
 // String functions
 static bool starts_with(const std::string& s, const std::string& prefix);
@@ -301,21 +302,20 @@ int main(int argc, char * * argv)
 
 // ------------------------------------------------ cached environment variables
 
-static const string& getenv(State& state, const string& s)
+static decltype(auto) getenv(State& state, const string& s)
 {
     auto ii = state.env.find(s);
     if(ii == state.env.end()) {
         auto var = getenv(s.c_str());
         if(var == nullptr)
-            throw std::runtime_error("environment variable '"
-                                     + s + "' not found");
+            return state.env.end();
         state.env[s] = string(var);
         ii = state.env.find(s);
     }
-    return ii->second;
+    return ii;
 }
 
-static void substitute_env_variables(State& state, string& line_s)
+static void substitute_env_variables(State& state, string& line_s, bool strict)
 {
     auto pos = line_s.find('$');
     if(pos == string::npos) return;
@@ -337,11 +337,21 @@ static void substitute_env_variables(State& state, string& line_s)
         }
 
         auto pos = line.find('}', i);
-        if(pos == string::npos)
+        if(pos == string::npos) 
             throw std::runtime_error("parse error reading variable name, "
                                      "missing '}'");
+
         string variable(line.substr(i + 1, pos - i - 1));
-        ss << getenv(state, variable);
+        const auto value = getenv(state, variable);
+        if(value == state.env.end()) {
+            if(strict) {
+                throw std::runtime_error("environment variable '"
+                                         + variable + "' not found");
+            }
+            ss << '$' << '{' << variable << '}';
+        } else {
+            ss << value->second;
+        }
         i = pos;
     };
     
@@ -482,13 +492,17 @@ static void command_substitute(State& state,
             extless_ptr = ptr;
         }
     }
+
+    auto strdup = [] (const char * s) {
+        auto dup = static_cast<char *>(malloc((strlen(s) + 1) * sizeof(char)));
+        strcpy(dup, s);
+        return dup;
+    };
     
     auto get = [&] (const char * s, char * (*f) (char *)) {
-        auto len = strlen(s);
-        auto s2 = static_cast<char *>(malloc((len + 1) * sizeof(char)));
-        strcpy(s2, s);
-        auto ret = string(f(s2));
-        free(s2);
+        auto dup = strdup(s);
+        auto ret = string(f(dup));
+        free(dup);
         return ret;
     };
 
@@ -499,7 +513,7 @@ static void command_substitute(State& state,
             case '^': out << fname_ptr; break;
             case '%': out << extless_ptr; break;
             case '@': out << get(fname_ptr, dirname).c_str(); break;
-            case '&': out << get(fname_ptr, basename).c_str(); break;
+            case '&': out << get(extless_ptr, basename).c_str(); break;
             case '!': break;
             default:  out << c;
             }
@@ -559,7 +573,7 @@ static void process_src_command(State& state, const vector<string> command)
     //  - !, if an output filename ends !, then it's added to the list of files
     //       found above
     //  - ~, A line beging like this is just a continuation of the previous rule
-    
+
     // ---- Parse the source line...
     string cd_dir = "";
     vector<FilterVariable> filters;
@@ -726,18 +740,39 @@ static void process_src_command(State& state, const vector<string> command)
     }
 }
 
-// ------------------------------------------------------------- transform input
+// ------------------------------------------------------------------ preprocess
 
-static bool transform_input(State& state)
+static bool preprocess_input(State& state)
 {
-    // Maximize the number of open file descriptors, so that we
-    // can traverse directories accurately.
-    
-    vector<string> src_command;    
+    // TODO, maybe this is a good idea...
+    // #ifdef VAR
+    // #ifdef VAR == "value"
+    // #ifndef ...
+    // #else
+    // #endif
     
     for(string line; std::getline(state.in, line); ) {
+        if(!starts_with(line, "#"))
+            substitute_env_variables(state, line, false);
+        state.lines.emplace_back(std::move(line));
+    }
 
-        // Process any pending command
+    return true;
+}
+
+// ----------------------------------------------------------------- process+src
+
+static bool process_source_commands(State& state)
+{
+    vector<string> src_command;    
+    for(auto& line: state.lines) {
+        
+        // Skip comments
+        if(starts_with(line, "#")) {
+            state.out << line << std::endl;
+            continue;
+        }
+        
         if(src_command.size() > 0      // we're in a command
            && !starts_with(line, "~")  // not adding to previous command
            && !starts_with(line, "-")) // not adding to a command
@@ -746,8 +781,10 @@ static bool transform_input(State& state)
                 src_command.clear();
             }
 
+        // Final "strict" substitution of environment variables
+        substitute_env_variables(state, line, true);
+        
         // Process the line
-        substitute_env_variables(state, line);
         if(starts_with(line, "+src")) {
             assert(src_command.size() == 0);
             src_command.push_back(line);
@@ -765,7 +802,16 @@ static bool transform_input(State& state)
         process_src_command(state, src_command);
         src_command.clear();
     }
-            
+
+    return true;
+}
+
+// ------------------------------------------------------------- transform input
+
+static bool transform_input(State& state)
+{
+    preprocess_input(state);
+    process_source_commands(state);
     return true;
 }
 
