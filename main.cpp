@@ -42,6 +42,11 @@
 #include <regex>
 #include <deque>
 
+#ifdef CPP_FILESYSTEM
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#endif
+
 using std::vector;
 using std::string;
 using std::string_view;
@@ -654,11 +659,22 @@ static void process_src_command(State& state, const vector<string> command)
     }
 
     // ---- Search directories: this is not thread-safe, for what it's worth
+#ifdef CPP_FILESYSTEM
     nftw_files.clear();
     for(const auto& directory: directories) {
+        const auto opts = fs::directory_options::follow_directory_symlink;
+        for(auto& f: fs::recursive_directory_iterator(directory, opts)) {
+            const auto s = f.path().string();
+            if(fs::is_regular_file(s))
+                nftw_files.push_back(s);
+        }
+    }
+#else
+    nftw_files.clear();
+    for(const auto& directory: directories)
         if(nftw(directory.c_str(), nftw_fn, state.n_descriptors, 0) != 0)
             throw std::runtime_error("failed to traverse '" + directory + "'");
-    }
+#endif
 
     // ---- Move back to original CWD if we changed directory
     if(cd_dir != "")
