@@ -516,6 +516,7 @@ static std::regex make_glob(const string& pattern)
 
 static void calculate_module_dependences(string_view fname, std::ostream& out)
 {
+   int counter             = 0;
    auto process_dependency = [&](char* pos) {
       int len = strlen(pos);
       if(len == 0) return;
@@ -536,14 +537,18 @@ static void calculate_module_dependences(string_view fname, std::ostream& out)
       for(auto itr = pos; *itr != '\0'; ++itr)
          if(*itr == '.') *itr = '/';
 
-      if(strlen(pos) > 0) { out << "$moduledir/" << pos << ".pcm"; }
+      if(strlen(pos) > 0) {
+         if(counter++ > 0) out << " ";
+         out << "$moduledir/" << pos << ".pcm";
+      }
    };
 
    std::fstream fin(fname.data());
    for(string line; std::getline(fin, line);) {
-      if(auto p_module = strstr(line.c_str(), "module"); p_module != nullptr) {
-         if(!strstr(line.c_str(), "export")) // export module is skipped
+      if(auto p_module = strstr(line.c_str(), "module "); p_module != nullptr) {
+         if(!strstr(line.c_str(), "export")) { // export module is skipped
             process_dependency(&p_module[7]);
+         }
       } else if(auto p_import = strstr(line.c_str(), "import");
                 p_import != nullptr) {
          process_dependency(&p_import[7]);
