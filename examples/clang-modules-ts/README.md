@@ -22,7 +22,7 @@ Feedback is welcome.
 The `build-clang.sh` script does precisely this. Eveything is installed to `/opt/llvm/trunk`.
 
 ```
- > cd /path/to/examples/directory
+ > cd /path/to/example/directory
  > ./build-clang.sh
 ```
 
@@ -31,7 +31,7 @@ The `build-clang.sh` script does precisely this. Eveything is installed to `/opt
 Mobius is installed to `/usr/local/bin`.
 
 ```
- > cd /path/to/mobiud/directory
+ > cd /path/to/mobius/directory
  > make
  > sudo make install
 ```
