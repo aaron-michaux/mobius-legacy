@@ -20,12 +20,14 @@ make
 sudo make install
 ```
 
-## Examples
-
-Examples and documentation to come. 
-For now, execute:
+## Instructions
 
 ```
 mobius -h
 ```
+
+## Examples
+
+So far there's only one example: [clang + modules-ts](https://github.com/aaron-michaux/mobius/tree/master/examples/clang-modules-ts). 
+
 
