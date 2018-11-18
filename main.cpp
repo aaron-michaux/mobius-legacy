@@ -533,10 +533,6 @@ static void calculate_module_dependences(string_view fname, std::ostream& out)
       // Skip leading white space
       while(*pos != '\0' and std::isspace(*pos)) pos++;
 
-      // Change '.' into '/'
-      // for(auto itr = pos; *itr != '\0'; ++itr)
-      //    if(*itr == '.') *itr = '/';
-
       if(strlen(pos) > 0) {
          if(counter++ > 0) out << " ";
          out << "$moduledir/" << pos << ".pcm";
@@ -549,6 +545,9 @@ static void calculate_module_dependences(string_view fname, std::ostream& out)
          if(!strstr(line.c_str(), "export")) { // export module is skipped
             process_dependency(&p_module[7]);
          }
+      } else if(auto p_import = strstr(line.c_str(), "import export");
+                p_import != nullptr) {
+         process_dependency(&p_import[14]);
       } else if(auto p_import = strstr(line.c_str(), "import");
                 p_import != nullptr) {
          process_dependency(&p_import[7]);
