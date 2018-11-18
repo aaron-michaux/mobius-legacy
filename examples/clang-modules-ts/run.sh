@@ -140,7 +140,6 @@ NINJA_FILE="$(dirname "$TARGET")/build.ninja"
 
 [ "$TARGET" = "build.ninja" ] && exit 0
 
-echo ninja -f "$NINJA_FILE" -C "$PPWD" $FEEDBACK $CLEAN
 ! ninja -f "$NINJA_FILE" -C "$PPWD" $FEEDBACK $CLEAN \
     && exit 1
 

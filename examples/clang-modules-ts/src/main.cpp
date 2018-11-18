@@ -4,9 +4,9 @@ import stuff.example;
 
 using namespace stuff;
 
-int main(int, char**)
+int main(int argc, char** argv)
 {
-   observer_ptr<const char> name("Jeeves");
-   say_hello(name.get(), std::cout);
+   const char* name = (argc > 1) ? argv[1] : "Jeeves";
+   say_hello(name, std::cout);
    return 0;
 }
