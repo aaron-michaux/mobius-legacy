@@ -1,4 +1,4 @@
 
 # Getting Started with C++ Modules #
 
-This is a non-trivial example of 
+`Mobius` is a preprocessor for the [ninja build system](https://ninja-build.org/)
