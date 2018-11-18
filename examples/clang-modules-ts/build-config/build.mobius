@@ -1,0 +1,45 @@
+
+# -------------------------------------------------------------------- Toolchain
+
+include build-config/toolchains/flags-${TOOLCHAIN}.ninja
+
+# ---------------------------------------------------------------- Configuration
+
+target = ${TARGET}
+builddir = ${BUILDDIR}
+moduledir = $builddir/modules
+
+cli_link_extra = -lssl -lcrypto
+
+user_flags = 
+user_link = -lm -pthread
+
+cpp_inc = -nostdinc++ -isystem/opt/llvm/trunk/include/c++/v1 -Isrc -Icontrib
+link_libcpp_so = -L/opt/llvm/trunk/lib -Wl,-rpath,/opt/llvm/trunk/lib -lc++ -lc++experimental
+link_libcpp_a = -static -L/opt/llvm/trunk/lib -lc++ -lc++experimental
+
+o_flag = ${O_FLAG}
+c_flags = -DTARGET="$target" ${C_FLAGS} $user_flags
+cpp_flags = -std=c++2a $cpp_inc ${CPP_FLAGS}
+link_flags = $link_libcpp_so ${LINK_FLAGS} ${EXTRA_LINK} $user_link
+ 
+# ------------------------------------------------------------------------ Rules
+
+include build-config/rules.ninja
+
+# ------------------------------------------------------------------------ Build
+
++src cd=. TARGET_OBJS=*.o ${SRC_DIRECTORIES}
+- *.mpp        build $moduledir/#.pcm:       mpp ^  | ?
+- *.mxx        build $moduledir/#.pcm:       mpp ^  | ?
+- *.cxx        build $moduledir/#.o:         ipp ^  | ?
+- *.cpp        build $builddir/%.o:          cpp ^  | ?
+- *.c          build $builddir/%.o:          c_rule ^
+ 
+# ----------------------------------------------------------------------- Target
+
+build $target: ${LINK_COMMAND} ${TARGET_OBJS} 
+
+# default
+default $target
+

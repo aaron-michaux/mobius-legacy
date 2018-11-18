@@ -1,0 +1,36 @@
+
+CC    = nice ionice -c3 /opt/llvm/trunk/bin/clang
+MOC   = qtchooser -run-tool=moc -qt=5
+RCC   = qtchooser -run-tool=rcc -qt=5
+SCAN  = nice ionice -c3 /opt/llvm/trunk/bin/clang
+PROTO = protoc
+cc_desc = clang
+
+cpp_inc = -nostdinc++ -isystem/opt/llvm/trunk/include/c++/v1
+link_libcpp_so = -L/opt/llvm/trunk/lib -Wl,-rpath,/opt/llvm/trunk/lib -lc++ -lc++experimental
+link_libcpp_a  = -static -L/opt/llvm/trunk/lib -lc++ -lc++experimental
+
+gdb_flags = -g3 -gdwarf-2 -fno-omit-frame-pointer -fno-optimize-sibling-calls
+d_flags = -DDEBUG_BUILD
+r_flags = -flto=thin -DRELEASE_BUILD -DNDEBUG
+o_flag  = -O2
+w_flags = -Werror -Wall -Wextra -Wpedantic -Winvalid-pch -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Wno-unused-parameter -Woverloaded-virtual -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wno-c++98-compat -Wno-documentation-unknown-command -Wno-c++98-compat-pedantic -Wno-padded -Wno-unused-member-function -Wformat-nonliteral -Wno-reserved-id-macro -Wno-format-nonliteral -Wno-exit-time-destructors -Wno-global-constructors -Wno-missing-prototypes -Wno-shadow -Wno-documentation
+
+f_flags = -fPIC -fdiagnostics-color=always -ferror-limit=4
+s_flags = -g -fno-omit-frame-pointer -fno-optimize-sibling-calls
+
+l_flags = -fuse-ld=/opt/llvm/trunk/bin/ld.lld 
+
+asan_flags = -DADDRESS_SANITIZE -fsanitize=address
+asan_link  = -fsanitize=address
+
+usan_flags = -DUNDEFINED_SANITIZE -fsanitize=undefined -fsanitize=integer -fsanitize=nullability
+usan_link  = -fsanitize=undefined -lubsan
+
+tsan_flags = -DTHREAD_SANITIZE -fsanitize=thread
+tsan_link = -fsanitize=thread
+
+prof_flags = -DBENCHMARK -fno-omit-frame-pointer -g
+prof_link  = -lbenchmark
+
+

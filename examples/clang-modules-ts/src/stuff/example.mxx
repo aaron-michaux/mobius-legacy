@@ -1,0 +1,16 @@
+
+import std.core;
+
+export module stuff.example;
+
+export
+{
+import nonstd.observer_ptr;
+
+   namespace stuff
+   {
+      using nonstd::observer_ptr;
+
+      void say_hello(std::string_view person, std::ostream& out);
+   } // namespace stuff
+}

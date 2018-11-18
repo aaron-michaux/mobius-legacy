@@ -1,0 +1,49 @@
+
+# ------------------------------------------------------------------------ Rules
+
+# ------------------------ Compile Rules
+
+rule mpp
+     depfile = $out.d
+     deps = gcc
+     command = $CC -x c++-module $o_flag $cpp_flags -fmodules-ts -fprebuilt-module-path=$moduledir -MMD -MF $out.d -o $out --precompile $in
+     description = $cc_desc --precompile $in
+
+rule ipp
+     depfile = $out.d
+     deps = gcc
+     command = $CC -x c++ $o_flag $cpp_flags -fmodules-ts -fprebuilt-module-path=$moduledir -fmodule-file=$$(dirname $out)/$$(basename $out .o).pcm -MMD -MF $out.d -o $out -c $in 
+     description = $cc_desc -c $in
+
+rule cpp
+     depfile = $out.d
+     deps = gcc
+     command = $CC -x c++ $o_flag $cpp_flags -fmodules-ts -fprebuilt-module-path=$moduledir -MMD -MF $out.d -c $in -o $out
+     description = $cc_desc -c $in
+
+rule cpp_Os
+     depfile = $out.d
+     deps = gcc
+     command = $CC -x c++ -Os $cpp_flags -fmodules-ts -fprebuilt-module-path=$moduledir -MMD -MF $out.d -c $in -o $out
+     description = $cc_desc -c $in
+     
+rule c_rule
+     depfile = $out.d
+     deps = gcc
+     command = $CC -x c $o_flag $c_flags -MMD -MF $out.d -c $in -o $out
+     description = $cc_desc -c $in
+
+# --------------------------- Link Rules
+
+rule link_exec
+     command = $CC -o $out $in $link_flags
+     description = $cc_desc link -o $out
+    
+rule link_shared
+     command = $CC -o $out -shared $in $link_flags
+     description = $cc_desc shared -o $out
+
+rule make_static
+     command = ar rcs $out $in
+     description = static $out
+

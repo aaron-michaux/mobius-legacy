@@ -1,0 +1,47 @@
+
+# -------------------------------------------------------------------- Toolchain
+
+include build-config/toolchains/flags-clang-trunk.ninja
+
+# ---------------------------------------------------------------- Configuration
+
+target = build/clang-trunk-asan/a.out
+builddir = /tmp/build-amichaux/clang-trunk-asan/a.out
+moduledir = $builddir/modules
+
+cli_link_extra = -lssl -lcrypto
+
+user_flags = 
+user_link = -lm -pthread
+
+cpp_inc = -nostdinc++ -isystem/opt/llvm/trunk/include/c++/v1 -Isrc -Icontrib
+link_libcpp_so = -L/opt/llvm/trunk/lib -Wl,-rpath,/opt/llvm/trunk/lib -lc++ -lc++experimental
+link_libcpp_a = -static -L/opt/llvm/trunk/lib -lc++ -lc++experimental
+
+o_flag = -O0
+c_flags = -DTARGET="$target" $w_flags $f_flags $d_flags $asan_flags $user_flags
+cpp_flags = -std=c++2a $cpp_inc $c_flags
+link_flags = $link_libcpp_so $l_flags $asan_link $cli_link_extra $user_link
+ 
+# ------------------------------------------------------------------------ Rules
+
+include build-config/rules.ninja
+
+# ------------------------------------------------------------------------ Build
+
+build $builddir/src/main.o: cpp src/main.cpp | $moduledir/std.core.pcm $moduledir/stuff.example.pcm
+build $moduledir/stuff.example.o: ipp src/stuff/example.cxx | $moduledir/stuff.example.pcm $moduledir/std.core.pcm
+build $moduledir/stuff.example.pcm: mpp src/stuff/example.mxx | $moduledir/std.core.pcm $moduledir/nonstd.observer_ptr.pcm
+build $moduledir/std.regex.pcm: mpp contrib/std/regex.mxx | $moduledir/std.core.pcm $moduledir/std.io.pcm
+build $moduledir/std.io.pcm: mpp contrib/std/io.mxx | $moduledir/std.core.pcm $moduledir/std.core.pcm
+build $moduledir/std.core.pcm: mpp contrib/std/core.mxx | 
+build $moduledir/std.threading.pcm: mpp contrib/std/threading.mxx | $moduledir/std.core.pcm
+build $moduledir/nonstd.observer_ptr.pcm: mpp contrib/nonstd/observer_ptr.mxx | 
+ 
+# ----------------------------------------------------------------------- Target
+
+build $target: link_exec $builddir/src/main.o $moduledir/stuff.example.o 
+
+# default
+default $target
+
