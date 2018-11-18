@@ -65,7 +65,7 @@ struct Options
    bool show_help{false};
    bool has_error{false};
 
-   bool module_mode{false};
+   string module_dir{""};
 
    string in_file{""};
    string out_file{""};
@@ -171,9 +171,9 @@ static void show_help(const char* exec_name)
       -D <var=value>   Set variable 'var' to 'value', as if an 
                        environment variable.=
 
-      -m               Invokes 'module-mode'. This will preprocess
-                       files and make module interfaces available
-                       through the '?' character
+      -m <dirname>     The prebuilt modules path, which is prepended
+                       to module dependencies discovered by the '?'
+                       character.
 
    Mobuis is a preprocessor for ninja.build files. It adds two features:
    (1) Environment variable substitution using ${USER} like syntax.
@@ -253,7 +253,7 @@ static Options parse_commandline(int argc, char** argv)
          continue;
       }
       if(arg == "-m") {
-         opts.module_mode = true;
+         opts.module_dir = safe_s(i);
          continue;
       }
       if(arg == "-D") {
@@ -514,7 +514,9 @@ static std::regex make_glob(const string& pattern)
 
 // ------------------------------------------------ calculate-module-dependences
 
-static void calculate_module_dependences(string_view fname, std::ostream& out)
+static void calculate_module_dependences(string_view fname,
+                                         string_view modules_dir,
+                                         std::ostream& out)
 {
    int counter             = 0;
    auto process_dependency = [&](char* pos) {
@@ -535,7 +537,10 @@ static void calculate_module_dependences(string_view fname, std::ostream& out)
 
       if(strlen(pos) > 0) {
          if(counter++ > 0) out << " ";
-         out << "$moduledir/" << pos << ".pcm";
+         out << modules_dir
+             << (modules_dir.size() > 0 and modules_dir.back() != '/' ? "/"
+                                                                      : "")
+             << pos << ".pcm";
       }
    };
 
@@ -632,7 +637,8 @@ static void command_substitute(State& state,
             }
             break;
          case '&': write_bname(extlessv.data(), out); break;
-         case '?': calculate_module_dependences(fname, out);
+         case '?':
+            calculate_module_dependences(fname, state.opts.module_dir, out);
          case '!': break;
          default: out << c;
          }
