@@ -518,44 +518,26 @@ static void calculate_module_dependences(string_view fname,
                                          string_view modules_dir,
                                          std::ostream& out)
 {
+   static const std::regex import_regex(
+       "^\\s*import\\s+(export\\s+)?([a-zA-Z_][a-zA-Z_\\.]*);");
+   static const std::regex module_regex(
+       "^\\s*module\\s+([a-zA-Z_][a-zA-Z_\\.]*);");
+
    int counter             = 0;
-   auto process_dependency = [&](char* pos) {
-      int len = strlen(pos);
-      if(len == 0) return;
-
-      // remove trailing ';' and white space
-      for(int i = len - 1; i >= 0; --i) {
-         if(std::isspace(pos[i]) or pos[i] == ';') {
-            pos[i] = '\0';
-            continue;
-         }
-         break;
-      }
-
-      // Skip leading white space
-      while(*pos != '\0' and std::isspace(*pos)) pos++;
-
-      if(strlen(pos) > 0) {
-         if(counter++ > 0) out << " ";
-         out << modules_dir
-             << (modules_dir.size() > 0 and modules_dir.back() != '/' ? "/"
-                                                                      : "")
-             << pos << ".pcm";
-      }
+   auto process_dependency = [&](const string& module) {
+      if(counter++ > 0) out << " ";
+      out << modules_dir
+          << (modules_dir.size() > 0 and modules_dir.back() != '/' ? "/" : "")
+          << module << ".pcm";
    };
 
    std::fstream fin(fname.data());
    for(string line; std::getline(fin, line);) {
-      if(auto p_module = strstr(line.c_str(), "module "); p_module != nullptr) {
-         if(!strstr(line.c_str(), "export")) { // export module is skipped
-            process_dependency(&p_module[7]);
-         }
-      } else if(auto p_import = strstr(line.c_str(), "import export");
-                p_import != nullptr) {
-         process_dependency(&p_import[14]);
-      } else if(auto p_import = strstr(line.c_str(), "import");
-                p_import != nullptr) {
-         process_dependency(&p_import[7]);
+      std::smatch results;
+      if(std::regex_match(line, results, import_regex)) {
+         process_dependency(results[results.size() - 1].str());
+      } else if(std::regex_match(line, results, module_regex)) {
+         process_dependency(results[results.size() - 1].str());
       }
    }
 }
