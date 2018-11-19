@@ -519,9 +519,9 @@ static void calculate_module_dependences(string_view fname,
                                          std::ostream& out)
 {
    static const std::regex import_regex(
-       "^\\s*import\\s+(export\\s+)?([a-zA-Z_][a-zA-Z_\\.]*);");
+       "^\\s*import\\s+(export\\s+)?([a-zA-Z_][a-zA-Z0-9_\\.]*);");
    static const std::regex module_regex(
-       "^\\s*module\\s+([a-zA-Z_][a-zA-Z_\\.]*);");
+       "^\\s*module\\s+([a-zA-Z_][a-zA-Z0-9_\\.]*);");
 
    int counter             = 0;
    auto process_dependency = [&](const string& module) {
