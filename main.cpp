@@ -21,26 +21,25 @@
 // SOFTWARE.
 
 #include <assert.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
-#include <libgen.h>
-#include <unistd.h>
-#include <libgen.h>
 #include <ftw.h>
+#include <libgen.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
-#include <vector>
-#include <string>
-#include <string_view>
-#include <sstream>
 #include <algorithm>
+#include <cctype>
+#include <deque>
 #include <fstream>
 #include <iostream>
-#include <unordered_map>
-#include <cctype>
 #include <regex>
-#include <deque>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
 
 #include <experimental/filesystem>
 namespace fs = std::experimental::filesystem;
@@ -62,15 +61,13 @@ static const char* empty_directory = "";
 
 struct Options
 {
-   bool show_help{false};
-   bool has_error{false};
-
-   string module_dir{""};
-
-   string in_file{""};
-   string out_file{""};
-
-   std::unordered_map<string, string> defines;
+   bool show_help                             = false;
+   bool has_error                             = false;
+   bool unity_build                           = true;
+   string module_dir                          = "";
+   string in_file                             = "";
+   string out_file                            = "";
+   std::unordered_map<string, string> defines = {};
 };
 
 struct State
@@ -135,13 +132,6 @@ static void ltrim(std::string& s);
 static void rtrim(std::string& s);
 static void trim(std::string& s);
 static bool is_empty_line(const std::string& s);
-
-// Traverses directory, placing found filenames into a global
-// variable (nftw_files)
-static int nftw_fn(const char* fpath,
-                   const struct stat* sb,
-                   int typeflag,
-                   struct FTW* ftwbuf);
 
 // Turns a glob pattern into a regex.
 static std::regex make_glob(const string& pattern);
@@ -238,31 +228,21 @@ static Options parse_commandline(int argc, char** argv)
       string arg = argv[i];
       if(arg == "-h" || arg == "--help") {
          opts.show_help = true;
-         continue;
-      }
-      if(arg == "-i") {
+      } else if(arg == "-i") {
          opts.in_file = safe_s(i);
-         continue;
-      }
-      if(arg == "-") {
+      } else if(arg == "-") {
          opts.in_file = arg;
-         continue;
-      }
-      if(arg == "-o") {
+      } else if(arg == "-o") {
          opts.out_file = safe_s(i);
-         continue;
-      }
-      if(arg == "-m") {
+      } else if(arg == "-m") {
          opts.module_dir = safe_s(i);
-         continue;
-      }
-      if(arg == "-D") {
+      } else if(arg == "-D") {
          process_define(safe_s(i));
-         continue;
-      }
-      if(starts_with(arg, "-D")) {
+      } else if(starts_with(arg, "-D")) {
          process_define(&arg[2]);
-         continue;
+      } else {
+         fprintf(stderr, "Unknown argument '%s'.\n", argv[i]);
+         opts.has_error = true;
       }
    }
 
@@ -575,8 +555,6 @@ static void command_substitute(State& state,
       if(extlessv[i] == '.') extlessv.remove_suffix(extlessv.size() - i);
    }
 
-   //
-
    auto strdup = [](string_view s) {
       auto dup = static_cast<char*>(malloc((s.size() + 1) * sizeof(char)));
       int pos  = 0;
@@ -748,16 +726,6 @@ static void process_src_command(State& state, const vector<string> command)
       }
    }
 
-   if(false) {
-      cout << "COMMAND " << endl;
-      cout << "cd:     " << cd_dir << endl;
-      for(auto& f : filters)
-         cout << "filter: " << f.variable << " = " << f.filter << endl;
-      for(auto& d : directories) cout << " + directory '" << d << "'" << endl;
-      for(auto& cmd : commands)
-         cout << " - command " << cmd.pattern << " => " << cmd.command << endl;
-   }
-
    // ---- Attempt to change directory
    if(cd_dir != "") {
       if(chdir(cd_dir.c_str()) != 0)
@@ -789,7 +757,14 @@ static void process_src_command(State& state, const vector<string> command)
    auto match_and_substitute
        = [&](const string& fname, string_view dname, const FileCommand& cmd) {
             if(std::regex_match(fname.begin(), fname.end(), cmd.glob)) {
+               // Parse the command and add
                command_substitute(state, fname, dname, cmd, filters);
+
+               // We may filter the input file as well...
+               for(auto& filter : filters)
+                  if(std::regex_match(fname.begin(), fname.end(), filter.glob))
+                     filter.products.push_back(fname);
+
                return true;
             }
             return false;
@@ -807,6 +782,12 @@ static void process_src_command(State& state, const vector<string> command)
       nftw_dirs  = state.additional_dirnames;
       state.additional_filenames.clear();
       state.additional_dirnames.clear();
+   }
+
+   // ---- Ensure that environment variables exist for all filters
+   for(auto& filter : filters) {
+      auto ii = state.env.find(filter.variable);
+      if(ii == cend(state.env)) state.env[filter.variable] = string{};
    }
 
    // ---- Now update any environment variables (via filter products)
@@ -839,18 +820,10 @@ static void process_src_command(State& state, const vector<string> command)
 
 static bool preprocess_input(State& state)
 {
-   // TODO, maybe this is a good idea...
-   // #ifdef VAR
-   // #ifdef VAR == "value"
-   // #ifndef ...
-   // #else
-   // #endif
-
    for(string line; std::getline(state.in, line);) {
       if(!starts_with(line, "#")) substitute_env_variables(state, line, false);
       state.lines.push_back(line);
    }
-
    return true;
 }
 
