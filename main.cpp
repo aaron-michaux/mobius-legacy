@@ -53,6 +53,8 @@ using std::string_view;
 using std::unordered_map;
 using std::vector;
 
+using namespace std::string_literals;
+
 // ------------------------------------------------------------ global variables
 
 static const char* empty_directory = "";
@@ -270,8 +272,8 @@ int main(int argc, char** argv)
    }
 
    // -- Setup input/output files
-   std::istream* in{nullptr};
-   std::ostream* out{nullptr};
+   std::istream* in  = nullptr;
+   std::ostream* out = nullptr;
    std::ifstream fin;
    std::ofstream fout;
    if(opts.in_file == "-") {
@@ -421,6 +423,12 @@ static bool is_empty_line(const std::string& s)
    for(auto c : s)
       if(!std::isspace(c)) return false;
    return true;
+}
+
+template<class U, class V> static bool ends_with(const U& input, const V& match)
+{
+   return input.size() >= match.size()
+          and std::equal(crbegin(match), crend(match), rbegin(input));
 }
 
 // ------------------------------------------------------------------- make-glob
@@ -791,6 +799,14 @@ static void process_src_command(State& state, const vector<string> command)
    }
 
    // ---- Now update any environment variables (via filter products)
+   const string main_cpp = "main.cpp"s;
+   const string main_cc  = "main.cc"s;
+
+   auto is_main_source_file = [&](const auto& fname) -> bool {
+      return ends_with(fname, main_cpp) || ends_with(fname, main_cc)
+             || ends_with(fname, "main.cxx"s) || ends_with(fname, "main.c"s);
+   };
+
    for(auto& filter : filters) {
       if(!filter.products.empty()) {
          auto ii = state.env.find(filter.variable);
@@ -801,6 +817,17 @@ static void process_src_command(State& state, const vector<string> command)
             ss << ii->second;
             first = false;
          }
+
+         // sort the filter, such that any `main.cpp` files come first
+         std::sort(filter.products.begin(),
+                   filter.products.end(),
+                   [&](const auto& A, const auto& B) {
+                      const bool a_ends = is_main_source_file(A);
+                      const bool b_ends = is_main_source_file(B);
+                      if(a_ends && !b_ends) return true;
+                      if(!a_ends && b_ends) return false;
+                      return A < B;
+                   });
 
          for(const auto& s : filter.products) {
             if(first)
